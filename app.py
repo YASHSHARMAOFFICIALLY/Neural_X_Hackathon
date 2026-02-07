@@ -26,6 +26,10 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['ALLOWED_EXTENSIONS'] = {'txt', 'pdf', 'docx', 'md'}
 
+@app.route('/test-api')
+def test():
+    return {"status": "Backend is reachable!"}
+
 # Ensure upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 import os
