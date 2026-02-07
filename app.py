@@ -28,6 +28,10 @@ app.config['ALLOWED_EXTENSIONS'] = {'txt', 'pdf', 'docx', 'md'}
 
 # Ensure upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+import os
+UPLOAD_FOLDER = 'uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
 # Initialize Anthropic client (API key should be set in environment)
 
