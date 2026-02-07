@@ -1,13 +1,18 @@
 """
-AI-Native Learning System
+SNOTRA-AI
 A comprehensive educational platform with AI-powered features
 """
+from dotenv import load_dotenv
+load_dotenv()
+
 
 from flask import Flask, render_template, request, jsonify, session
 from werkzeug.utils import secure_filename
 import os
 import json
-import anthropic
+from google import genai
+from google.genai import types
+
 from datetime import datetime
 import PyPDF2
 import docx
@@ -25,7 +30,16 @@ app.config['ALLOWED_EXTENSIONS'] = {'txt', 'pdf', 'docx', 'md'}
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Initialize Anthropic client (API key should be set in environment)
-client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+
+GOOGLE_API_KEYS = [
+    os.environ.get("GOOGLE_API_KEY1"),
+    os.environ.get("GOOGLE_API_KEY2"),
+    os.environ.get("GOOGLE_API_KEY3")
+]
+
+
+# Use 'gemini-1.5-flash' for speed and high free-tier limits
+
 
 # YouTube API configuration
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -66,22 +80,42 @@ def extract_text_from_file(filepath):
         return None
 
 
-def call_claude(system_prompt, user_message, max_tokens=4000):
-    """Call Claude API with given prompts"""
-    try:
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=max_tokens,
-            system=system_prompt,
-            messages=[
-                {"role": "user", "content": user_message}
-            ]
-        )
-        return message.content[0].text
-    except Exception as e:
-        print(f"Error calling Claude API: {e}")
-        return None
 
+import random # Add this to your imports at the top
+
+# ... other imports ...
+
+# 1. Collect all keys into a list
+
+# Filter out None values in case one key is missing in .env
+GOOGLE_API_KEYS = [k for k in GOOGLE_API_KEYS if k]
+
+def call_gemini(system_prompt, user_message, max_tokens=2000):
+    try:
+        if not GOOGLE_API_KEYS:
+            print("ERROR: No API keys found.")
+            return None
+        
+        # 1. Randomly pick a key
+        selected_key = random.choice(GOOGLE_API_KEYS)
+        
+        # 2. Initialize the Client
+        client = genai.Client(api_key=selected_key)
+        
+        # 3. Request generation (Model name goes here now)
+        response = client.models.generate_content(
+            model='gemini-2.5-flash', # Use 1.5-flash for stable hackathon performance
+            contents=user_message,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                max_output_tokens=max_tokens,
+            ),
+        )
+        return response.text
+
+    except Exception as e:
+        print(f"Error calling Gemini API: {e}")
+        return None
 
 def search_youtube_videos(query, max_results=5):
     """Search for educational videos on YouTube"""
@@ -182,7 +216,7 @@ Include:
 3. Important points and takeaways
 4. Any critical information"""
     
-    summary = call_claude(system_prompt, user_message)
+    summary = call_gemini(system_prompt, user_message)
     
     if summary:
         return jsonify({'summary': summary})
@@ -225,7 +259,7 @@ Requirements:
 - Questions should test comprehension, not just memorization
 - Return ONLY the JSON, no additional text"""
     
-    response = call_claude(system_prompt, user_message, max_tokens=4000)
+    response = call_gemini(system_prompt, user_message, max_tokens=4000)
     
     if response:
         try:
@@ -305,7 +339,7 @@ Include:
 - Provide explanations for objective questions
 - Return ONLY the JSON"""
     
-    response = call_claude(system_prompt, user_message, max_tokens=4000)
+    response = call_gemini(system_prompt, user_message, max_tokens=4000)
     
     if response:
         try:
@@ -363,7 +397,7 @@ The mind map should:
 - Each subtopic should have key points
 - Return ONLY the JSON"""
     
-    response = call_claude(system_prompt, user_message, max_tokens=3000)
+    response = call_gemini(system_prompt, user_message, max_tokens=3000)
     
     if response:
         try:
@@ -407,7 +441,7 @@ You have access to the following document content:
 Answer the student's questions clearly and helpfully. Provide examples, explanations, and encourage learning.
 If the question is not related to the document, you can still help with general educational topics."""
     
-    response = call_claude(system_prompt, user_message, max_tokens=2000)
+    response = call_gemini(system_prompt, user_message, max_tokens=2000)
     
     if response:
         # Store in chat history
@@ -433,7 +467,7 @@ def search_videos():
     if not query and content:
         # Extract main topic from document
         system_prompt = "Extract the main topic or subject from this text in 3-5 words:"
-        topic = call_claude(system_prompt, content[:2000], max_tokens=50)
+        topic = call_gemini(system_prompt, content[:2000], max_tokens=50)
         query = topic.strip() if topic else ''
     
     if not query:
@@ -450,6 +484,18 @@ def clear_session():
     session.clear()
     return jsonify({'success': True})
 
+@app.route('/list-models')
+def list_models():
+    try:
+        genai.configure(api_key=random.choice(GOOGLE_API_KEYS))
+        models = [m.name for m in genai.list_models()]
+        return jsonify({"available_models": models})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=os.environ.get("FLASK_DEBUG", "True").lower() == "true",
+         host='0.0.0.0', 
+            port=int(os.environ.get("PORT", 5000))
+            )
